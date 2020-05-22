@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 
+	"github.com/fatih/color"
 	"github.com/fsnotify/fsnotify"
 )
 
@@ -16,8 +17,7 @@ func main() {
 	filesToRun := getFilesToRun()
 
 	// start running the files in a separate goroutine
-
-	fmt.Printf("starting gomon... running %v\n", filesToRun)
+	color.Green("** starting gomon... running %v\n", filesToRun)
 	go startFiles(filesToRun)
 
 	if err := WatchFiles(filesToRun); err != nil {
@@ -58,7 +58,7 @@ func WatchFiles(filesToRun []string) error {
 					// if a mod event is received, then a file that I added a watcher to was modified
 					// therefore, I should restart the go project by running the go files in the specified directory
 
-					fmt.Printf("restarting gomon...\n")
+					color.Green("** restarting gomon...\n")
 					go startFiles(filesToRun)
 				}
 			case err := <-watcher.Errors:
@@ -111,7 +111,7 @@ func startFiles(filesToRun []string) {
 	// run the command, and access the returned combined standard output and standard error
 	stdoutStderr, err := cmd.CombinedOutput()
 	if err != nil {
-		fmt.Printf("\nGOMON DETECTED ERROR WITH: %v\n\n", err)
+		color.Red("\nGOMON DETECTED ERROR WITH: %v:\n\n", err)
 	}
 
 	// redirects stdOut and stdErr of file to stdOut & stdErr of gomon
