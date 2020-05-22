@@ -70,11 +70,13 @@ func WatchFiles(filesToRun []string) error {
 	return nil
 }
 
+// getWatcherWalkFunc returns an anonymous filepath.WalkFunc that has access to extensionsToBeWatched
+// this closure functionality allows the inner function to access the extensionsToBeWatched while still keeping the necessary signature
 func getWatcherWalkFunc(extensionsToBeWatched []string) filepath.WalkFunc {
 	// since filepath.Walk requires a filepath.Walkfunc function, the callback function that I provide needs to have that specific signature, ie. I can't pass another param
 	// therefore, getWatcherWalkFunc needs to return a closure that has access to extensionsToBeWatched, since the flags can (and should) only  be parsed one time
 
-	// the below anonymous function is run as the WalkFunc for filepath.Walk/2
+	// the below anonymous function is run as the WalkFunc for filepath.Walk
 	// the below anonymous function adds a fsnotify watcher to each file that should be monitored according to extensionsToBeWatched
 	return func(path string, info os.FileInfo, err error) error {
 		// first, check the error in the function parameters
