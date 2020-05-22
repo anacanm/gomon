@@ -142,5 +142,11 @@ func isModEvent(eventOp fsnotify.Op) bool {
 		}
 	}
 
+	if runtime.GOOS == "windows" {
+		if eventOp == fsnotify.Write {
+			return true
+		}
+	}
+
 	return false
 }
