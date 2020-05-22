@@ -47,9 +47,8 @@ func WatchFiles() error {
 			select {
 			// listen for a file event or an error
 			case event := <-watcher.Events:
-				// linux OS does not report WRITE file events, rather, it reports CHMOD events
-				if event.Op == fsnotify.Write || (runtime.GOOS == "linux" && event.Op == fsnotify.Chmod) {
-					// if a write event is received, then a file that we added a watcher to was modified
+				if isModEvent(event.Op) {
+					// if a mod event is received, then a file that I added a watcher to was modified
 					// therefore, I should restart the go project by running the go files in the specified directory
 					go func() {
 						// goFileMatches is a slice of strings that are the names of the files in the specified directory that are go files that need to be run
@@ -126,4 +125,28 @@ func getWatcherWalkFunc(extensionsToBeWatched []string) filepath.WalkFunc {
 		}
 		return nil
 	}
+}
+
+func isModEvent(eventOp fsnotify.Op) bool {
+	if runtime.GOOS == "darwin" {
+		// depending on the version of Mac OSX, modifying a file will send either a RENAME or a WRITE event
+		if eventOp == fsnotify.Rename || eventOp == fsnotify.Write {
+			return true
+		}
+	}
+
+	if runtime.GOOS == "linux" {
+		// on linux, modifying a file will send CHMOD events
+		if eventOp == fsnotify.Chmod {
+			return true
+		}
+	}
+
+	if runtime.GOOS == "windows" {
+		if eventOp == fsnotify.Write {
+			return true
+		}
+	}
+
+	return false
 }
