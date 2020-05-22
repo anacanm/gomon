@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/fsnotify/fsnotify"
@@ -46,7 +47,8 @@ func WatchFiles() error {
 			select {
 			// listen for a file event or an error
 			case event := <-watcher.Events:
-				if event.Op == fsnotify.Write {
+				// linux OS does not report WRITE file events, rather, it reports CHMOD events
+				if event.Op == fsnotify.Write || (runtime.GOOS == "linux" && event.Op == fsnotify.Chmod) {
 					// if a write event is received, then a file that we added a watcher to was modified
 					// therefore, I should restart the go project by running the go files in the specified directory
 					go func() {
