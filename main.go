@@ -91,7 +91,6 @@ func WatchFiles() error {
 					}()
 				}
 			case err := <-watcher.Errors:
-				// TODO: propogate errors rather than just printing them
 				fmt.Printf("Error recieved from file watcher: %v", err)
 			}
 		}
