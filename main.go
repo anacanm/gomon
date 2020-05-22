@@ -7,13 +7,20 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strings"
 
 	"github.com/fsnotify/fsnotify"
 )
 
 func main() {
-	if err := WatchFiles(); err != nil {
+	// first, get a slice of filenames that I should run, according to the user
+	filesToRun := getFilesToRun()
+
+	// start running the files in a separate goroutine
+
+	fmt.Printf("starting gomon... running %v\n\n", filesToRun)
+	go startFiles(filesToRun)
+
+	if err := WatchFiles(filesToRun); err != nil {
 		log.Fatalf("Error HERE: %v", err)
 	}
 }
@@ -21,7 +28,7 @@ func main() {
 var watcher *fsnotify.Watcher
 
 // WatchFiles watches the appropriate files, sending events or errors as they occur on files
-func WatchFiles() error {
+func WatchFiles(filesToRun []string) error {
 
 	// creates a new file watcher
 	var err error
@@ -50,46 +57,7 @@ func WatchFiles() error {
 				if isModEvent(event.Op) {
 					// if a mod event is received, then a file that I added a watcher to was modified
 					// therefore, I should restart the go project by running the go files in the specified directory
-					go func() {
-						// goFileMatches is a slice of strings that are the names of the files in the specified directory that are go files that need to be run
-						var filePathToLookForGoFiles string
-						if len(os.Args) > 1 {
-							filePathToLookForGoFiles = os.Args[1]
-
-							// if the filepath provided by the user does not have a "/" at the end (as it should) to specify that it is a dir
-							// then add the "/"
-							if !strings.HasSuffix(filePathToLookForGoFiles, "/") {
-								filePathToLookForGoFiles += "/"
-							}
-
-							// if the first command line argument begins with a "-", then it is a flag, and gomon should be run in the root dir
-							if strings.HasPrefix(filePathToLookForGoFiles, "-") {
-								filePathToLookForGoFiles = ""
-							}
-
-						}
-
-						goFileMatches, err := filepath.Glob(filePathToLookForGoFiles + "*.go")
-						if err != nil {
-							fmt.Printf("Error getting filematches: %v", err)
-						}
-
-						// add "run" to the begginning of the filenames, to be used below in the go run command
-						goFileMatches = append([]string{"run"}, goFileMatches...)
-
-						// create the command to be run: go run FILE_LOCATIONS
-						// 		ex: go run cmd/main.go cmd/fileutil.go
-						cmd := exec.Command("go", goFileMatches...)
-
-						// run the command, and access the returned combined standard output and standard error
-						stdoutStderr, err := cmd.CombinedOutput()
-						if err != nil {
-							fmt.Printf("GOMON REPORTED ERROR: %v\n\n", err)
-						}
-
-						// redirects stdOut and stdErr of file to stdOut & stdErr of gomon
-						fmt.Printf("%s", stdoutStderr)
-					}()
+					go startFiles(filesToRun)
 				}
 			case err := <-watcher.Errors:
 				fmt.Printf("Error recieved from file watcher: %v", err)
@@ -127,6 +95,26 @@ func getWatcherWalkFunc(extensionsToBeWatched []string) filepath.WalkFunc {
 	}
 }
 
+// startFiles starts the given files, connects the stdOut and stdErr to current stdOut and stdErr
+func startFiles(filesToRun []string) {
+	// add "run" to the begginning of the filenames, to be used below in the go run command
+	runFileCommand := append([]string{"run"}, filesToRun...)
+
+	// create the command to be run: go run FILE_LOCATIONS
+	// 		ex: go run cmd/main.go cmd/fileutil.go
+	cmd := exec.Command("go", runFileCommand...)
+
+	// run the command, and access the returned combined standard output and standard error
+	stdoutStderr, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("GOMON REPORTED ERROR: %v\n\n", err)
+	}
+
+	// redirects stdOut and stdErr of file to stdOut & stdErr of gomon
+	fmt.Printf("%s", stdoutStderr)
+}
+
+// isModEvent returns true if the incoming event should result in restarting the files according to the event and OS
 func isModEvent(eventOp fsnotify.Op) bool {
 	if runtime.GOOS == "darwin" {
 		// depending on the version of Mac OSX, modifying a file will send either a RENAME or a WRITE event
