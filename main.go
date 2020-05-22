@@ -17,7 +17,7 @@ func main() {
 
 	// start running the files in a separate goroutine
 
-	fmt.Printf("starting gomon... running %v\n\n", filesToRun)
+	fmt.Printf("starting gomon... running %v\n", filesToRun)
 	go startFiles(filesToRun)
 
 	if err := WatchFiles(filesToRun); err != nil {
@@ -57,6 +57,8 @@ func WatchFiles(filesToRun []string) error {
 				if isModEvent(event.Op) {
 					// if a mod event is received, then a file that I added a watcher to was modified
 					// therefore, I should restart the go project by running the go files in the specified directory
+
+					fmt.Printf("restarting gomon...\n")
 					go startFiles(filesToRun)
 				}
 			case err := <-watcher.Errors:
@@ -109,7 +111,7 @@ func startFiles(filesToRun []string) {
 	// run the command, and access the returned combined standard output and standard error
 	stdoutStderr, err := cmd.CombinedOutput()
 	if err != nil {
-		fmt.Printf("GOMON REPORTED ERROR: %v\n\n", err)
+		fmt.Printf("\nGOMON DETECTED ERROR WITH: %v\n\n", err)
 	}
 
 	// redirects stdOut and stdErr of file to stdOut & stdErr of gomon
