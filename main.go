@@ -30,9 +30,11 @@ func WatchFiles() error {
 	}
 	defer watcher.Close()
 
+	// get the extensionsToBeWatched specified by the user using -flags
+	extensionsToBeWatched := fileExtensionsToBeWatched()
+
 	// begin walking at the root of the directory, adding a fsnotify watcher to each file
-	// TODO: make file extensions specifiable by a command line flag
-	if err := filepath.Walk(".", addWatcherToAppropriateFiles); err != nil {
+	if err := filepath.Walk(".", getWatcherWalkFunc(extensionsToBeWatched)); err != nil {
 		return fmt.Errorf("Error walking filepath: %v", err)
 	}
 
@@ -53,10 +55,17 @@ func WatchFiles() error {
 						if len(os.Args) > 1 {
 							filePathToLookForGoFiles = os.Args[1]
 
-							// if the filepath provided by the user does not have a "/" at the end, as it should to specify that it is a dir
+							// if the filepath provided by the user does not have a "/" at the end (as it should) to specify that it is a dir
+							// then add the "/"
 							if !strings.HasSuffix(filePathToLookForGoFiles, "/") {
 								filePathToLookForGoFiles += "/"
 							}
+
+							// if the first command line argument begins with a "-", then it is a flag, and gomon should be run in the root dir
+							if strings.HasPrefix(filePathToLookForGoFiles, "-") {
+								filePathToLookForGoFiles = ""
+							}
+
 						}
 
 						goFileMatches, err := filepath.Glob(filePathToLookForGoFiles + "*.go")
@@ -93,23 +102,27 @@ func WatchFiles() error {
 	return nil
 }
 
-// addWatcherToAppropriateFiles is run as the WalkFunc for filepath.Walk/2
-// addWatcherToAppropriateFiles adds a fsnotify watcher to each file that should be monitored
-func addWatcherToAppropriateFiles(path string, info os.FileInfo, err error) error {
-	// first, check the error in the function parameters
-	if err != nil {
-		return err
-	}
+func getWatcherWalkFunc(extensionsToBeWatched []string) filepath.WalkFunc {
+	// since filepath.Walk requires a filepath.Walkfunc function, the callback function that I provide needs to have that specific signature, ie. I can't pass another param
+	// therefore, getWatcherWalkFunc needs to return a closure that has access to extensionsToBeWatched, since the flags can (and should) only  be parsed one time
 
-	// add fsnotify watchers to files (not directories) that should be watched (have specific file extensions)
-	if !info.IsDir() {
-		// TODO: make file extensions to be watched specified by user
-		if fileShouldBeWatched(info.Name(), []string{".go"}) {
-			if err := watcher.Add(path); err != nil {
-				return fmt.Errorf("Error adding fsnotify watcher to %v: %v", path, err)
-			}
-
+	// the below anonymous function is run as the WalkFunc for filepath.Walk/2
+	// the below anonymous function adds a fsnotify watcher to each file that should be monitored according to extensionsToBeWatched
+	return func(path string, info os.FileInfo, err error) error {
+		// first, check the error in the function parameters
+		if err != nil {
+			return err
 		}
+
+		// add fsnotify watchers to files (not directories) that should be watched (have been specified by the user with -flags)
+		if !info.IsDir() {
+			if fileShouldBeWatched(info.Name(), extensionsToBeWatched) {
+				if err := watcher.Add(path); err != nil {
+					return fmt.Errorf("Error adding fsnotify watcher to %v: %v", path, err)
+				}
+
+			}
+		}
+		return nil
 	}
-	return nil
 }
